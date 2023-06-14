@@ -131,7 +131,6 @@ class Input {
     } else {
       this._getLabelWidth();
       this._getLabelPositionInInputGroup();
-      this._toggleDefaultDatePlaceholder();
     }
   }
 
@@ -148,10 +147,6 @@ class Input {
   }
 
   _showCounter() {
-    const counters = SelectorEngine.find('.form-counter', this._element);
-    if (counters.length > 0) {
-      return;
-    }
     this._counterElement = document.createElement('div');
     Manipulator.addClass(this._counterElement, CLASSNAME_COUNTER);
     const actualLength = this.input.value.length;
@@ -165,22 +160,6 @@ class Input {
       const actualLength = this.input.value.length;
       this._counterElement.innerHTML = `${actualLength} / ${this._maxLength}`;
     });
-  }
-
-  _toggleDefaultDatePlaceholder(input = this.input) {
-    const isTypeDate = input.getAttribute('type') === 'date';
-
-    if (!isTypeDate) {
-      return;
-    }
-
-    const isInputFocused = document.activeElement === input;
-
-    if (!isInputFocused && !input.value) {
-      input.style.opacity = 0;
-    } else {
-      input.style.opacity = 1;
-    }
   }
 
   _showPlaceholder() {
@@ -210,7 +189,6 @@ class Input {
   }
 
   _applyDivs() {
-    const allNotchWrappers = SelectorEngine.find(SELECTOR_NOTCH, this._element);
     const notchWrapper = element('div');
     Manipulator.addClass(notchWrapper, CLASSNAME_NOTCH);
     this._notchLeading = element('div');
@@ -219,9 +197,7 @@ class Input {
     Manipulator.addClass(this._notchMiddle, CLASSNAME_NOTCH_MIDDLE);
     this._notchTrailing = element('div');
     Manipulator.addClass(this._notchTrailing, CLASSNAME_NOTCH_TRAILING);
-    if (allNotchWrappers.length >= 1) {
-      return;
-    }
+
     notchWrapper.append(this._notchLeading);
     notchWrapper.append(this._notchMiddle);
     notchWrapper.append(this._notchTrailing);
@@ -249,7 +225,6 @@ class Input {
       if (input.value !== '') {
         Manipulator.addClass(input, CLASSNAME_ACTIVE);
       }
-      this._toggleDefaultDatePlaceholder(input);
     });
   }
 
@@ -276,11 +251,9 @@ class Input {
 
   _deactivate(event) {
     const input = event ? event.target : this.input;
-
     if (input.value === '') {
       input.classList.remove(CLASSNAME_ACTIVE);
     }
-    this._toggleDefaultDatePlaceholder(input);
   }
 
   static activate(instance) {
@@ -316,12 +289,6 @@ class Input {
 
   static getInstance(element) {
     return Data.getData(element, DATA_KEY);
-  }
-
-  static getOrCreateInstance(element, config = {}) {
-    return (
-      this.getInstance(element) || new this(element, typeof config === 'object' ? config : null)
-    );
   }
 }
 
@@ -371,14 +338,7 @@ EventHandler.on(window, 'shown.bs.dropdown', (e) => {
 });
 
 EventHandler.on(window, 'shown.bs.tab', (e) => {
-  let targetId;
-
-  if (e.target.href) {
-    targetId = e.target.href.split('#')[1];
-  } else {
-    targetId = Manipulator.getDataAttribute(e.target, 'target').split('#')[1];
-  }
-
+  const targetId = e.target.href.split('#')[1];
   const target = SelectorEngine.findOne(`#${targetId}`);
   SelectorEngine.find(SELECTOR_OUTLINE_INPUT, target).forEach((element) => {
     const instance = Input.getInstance(element.parentNode);

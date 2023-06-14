@@ -1,29 +1,46 @@
 /**
  * --------------------------------------------------------------------------
- * Bootstrap (v5.2.3): collapse.js
+ * Bootstrap (v5.0.0-beta2): collapse.js
  * Licensed under MIT (https://github.com/twbs/bootstrap/blob/main/LICENSE)
  * --------------------------------------------------------------------------
  */
 
 import {
   defineJQueryPlugin,
-  getElement,
-  getElementFromSelector,
+  emulateTransitionEnd,
   getSelectorFromElement,
+  getElementFromSelector,
+  getTransitionDurationFromElement,
+  isElement,
   reflow,
+  typeCheckConfig,
 } from './util/index';
+import Data from './dom/data';
 import EventHandler from './dom/event-handler';
+import Manipulator from './dom/manipulator';
 import SelectorEngine from './dom/selector-engine';
 import BaseComponent from './base-component';
 
 /**
+ * ------------------------------------------------------------------------
  * Constants
+ * ------------------------------------------------------------------------
  */
 
 const NAME = 'collapse';
 const DATA_KEY = 'bs.collapse';
 const EVENT_KEY = `.${DATA_KEY}`;
 const DATA_API_KEY = '.data-api';
+
+const Default = {
+  toggle: true,
+  parent: '',
+};
+
+const DefaultType = {
+  toggle: 'boolean',
+  parent: '(string|element)',
+};
 
 const EVENT_SHOW = `show${EVENT_KEY}`;
 const EVENT_SHOWN = `shown${EVENT_KEY}`;
@@ -35,53 +52,49 @@ const CLASS_NAME_SHOW = 'show';
 const CLASS_NAME_COLLAPSE = 'collapse';
 const CLASS_NAME_COLLAPSING = 'collapsing';
 const CLASS_NAME_COLLAPSED = 'collapsed';
-const CLASS_NAME_DEEPER_CHILDREN = `:scope .${CLASS_NAME_COLLAPSE} .${CLASS_NAME_COLLAPSE}`;
-const CLASS_NAME_HORIZONTAL = 'collapse-horizontal';
 
 const WIDTH = 'width';
 const HEIGHT = 'height';
 
-const SELECTOR_ACTIVES = '.collapse.show, .collapse.collapsing';
+const SELECTOR_ACTIVES = '.show, .collapsing';
 const SELECTOR_DATA_TOGGLE = '[data-bs-toggle="collapse"]';
 
-const Default = {
-  parent: null,
-  toggle: true,
-};
-
-const DefaultType = {
-  parent: '(null|element)',
-  toggle: 'boolean',
-};
-
 /**
- * Class definition
+ * ------------------------------------------------------------------------
+ * Class Definition
+ * ------------------------------------------------------------------------
  */
 
 class Collapse extends BaseComponent {
   constructor(element, config) {
-    super(element, config);
+    super(element);
 
     this._isTransitioning = false;
-    this._triggerArray = [];
+    this._config = this._getConfig(config);
+    this._triggerArray = SelectorEngine.find(
+      `${SELECTOR_DATA_TOGGLE}[href="#${element.id}"],` +
+        `${SELECTOR_DATA_TOGGLE}[data-bs-target="#${element.id}"]`
+    );
 
     const toggleList = SelectorEngine.find(SELECTOR_DATA_TOGGLE);
 
-    for (const elem of toggleList) {
+    for (let i = 0, len = toggleList.length; i < len; i++) {
+      const elem = toggleList[i];
       const selector = getSelectorFromElement(elem);
       const filterElement = SelectorEngine.find(selector).filter(
-        (foundElement) => foundElement === this._element
+        (foundElem) => foundElem === element
       );
 
       if (selector !== null && filterElement.length) {
+        this._selector = selector;
         this._triggerArray.push(elem);
       }
     }
 
-    this._initializeChildren();
+    this._parent = this._config.parent ? this._getParent() : null;
 
     if (!this._config.parent) {
-      this._addAriaAndCollapsedClass(this._triggerArray, this._isShown());
+      this._addAriaAndCollapsedClass(this._element, this._triggerArray);
     }
 
     if (this._config.toggle) {
@@ -90,21 +103,19 @@ class Collapse extends BaseComponent {
   }
 
   // Getters
+
   static get Default() {
     return Default;
   }
 
-  static get DefaultType() {
-    return DefaultType;
-  }
-
-  static get NAME() {
-    return NAME;
+  static get DATA_KEY() {
+    return DATA_KEY;
   }
 
   // Public
+
   toggle() {
-    if (this._isShown()) {
+    if (this._element.classList.contains(CLASS_NAME_SHOW)) {
       this.hide();
     } else {
       this.show();
@@ -112,21 +123,35 @@ class Collapse extends BaseComponent {
   }
 
   show() {
-    if (this._isTransitioning || this._isShown()) {
+    if (this._isTransitioning || this._element.classList.contains(CLASS_NAME_SHOW)) {
       return;
     }
 
-    let activeChildren = [];
+    let actives;
+    let activesData;
 
-    // find active children
-    if (this._config.parent) {
-      activeChildren = this._getFirstLevelChildren(SELECTOR_ACTIVES)
-        .filter((element) => element !== this._element)
-        .map((element) => Collapse.getOrCreateInstance(element, { toggle: false }));
+    if (this._parent) {
+      actives = SelectorEngine.find(SELECTOR_ACTIVES, this._parent).filter((elem) => {
+        if (typeof this._config.parent === 'string') {
+          return elem.getAttribute('data-bs-parent') === this._config.parent;
+        }
+
+        return elem.classList.contains(CLASS_NAME_COLLAPSE);
+      });
+
+      if (actives.length === 0) {
+        actives = null;
+      }
     }
 
-    if (activeChildren.length && activeChildren[0]._isTransitioning) {
-      return;
+    const container = SelectorEngine.findOne(this._selector);
+    if (actives) {
+      const tempActiveData = actives.find((elem) => container !== elem);
+      activesData = tempActiveData ? Data.getData(tempActiveData, DATA_KEY) : null;
+
+      if (activesData && activesData._isTransitioning) {
+        return;
+      }
     }
 
     const startEvent = EventHandler.trigger(this._element, EVENT_SHOW);
@@ -134,8 +159,16 @@ class Collapse extends BaseComponent {
       return;
     }
 
-    for (const activeInstance of activeChildren) {
-      activeInstance.hide();
+    if (actives) {
+      actives.forEach((elemActive) => {
+        if (container !== elemActive) {
+          Collapse.collapseInterface(elemActive, 'hide');
+        }
+
+        if (!activesData) {
+          Data.setData(elemActive, DATA_KEY, null);
+        }
+      });
     }
 
     const dimension = this._getDimension();
@@ -145,29 +178,38 @@ class Collapse extends BaseComponent {
 
     this._element.style[dimension] = 0;
 
-    this._addAriaAndCollapsedClass(this._triggerArray, true);
-    this._isTransitioning = true;
+    if (this._triggerArray.length) {
+      this._triggerArray.forEach((element) => {
+        element.classList.remove(CLASS_NAME_COLLAPSED);
+        element.setAttribute('aria-expanded', true);
+      });
+    }
+
+    this.setTransitioning(true);
 
     const complete = () => {
-      this._isTransitioning = false;
-
       this._element.classList.remove(CLASS_NAME_COLLAPSING);
       this._element.classList.add(CLASS_NAME_COLLAPSE, CLASS_NAME_SHOW);
 
       this._element.style[dimension] = '';
+
+      this.setTransitioning(false);
 
       EventHandler.trigger(this._element, EVENT_SHOWN);
     };
 
     const capitalizedDimension = dimension[0].toUpperCase() + dimension.slice(1);
     const scrollSize = `scroll${capitalizedDimension}`;
+    const transitionDuration = getTransitionDurationFromElement(this._element);
 
-    this._queueCallback(complete, this._element, true);
+    EventHandler.one(this._element, 'transitionend', complete);
+
+    emulateTransitionEnd(this._element, transitionDuration);
     this._element.style[dimension] = `${this._element[scrollSize]}px`;
   }
 
   hide() {
-    if (this._isTransitioning || !this._isShown()) {
+    if (this._isTransitioning || !this._element.classList.contains(CLASS_NAME_SHOW)) {
       return;
     }
 
@@ -185,101 +227,142 @@ class Collapse extends BaseComponent {
     this._element.classList.add(CLASS_NAME_COLLAPSING);
     this._element.classList.remove(CLASS_NAME_COLLAPSE, CLASS_NAME_SHOW);
 
-    for (const trigger of this._triggerArray) {
-      const element = getElementFromSelector(trigger);
+    const triggerArrayLength = this._triggerArray.length;
+    if (triggerArrayLength > 0) {
+      for (let i = 0; i < triggerArrayLength; i++) {
+        const trigger = this._triggerArray[i];
+        const elem = getElementFromSelector(trigger);
 
-      if (element && !this._isShown(element)) {
-        this._addAriaAndCollapsedClass([trigger], false);
+        if (elem && !elem.classList.contains(CLASS_NAME_SHOW)) {
+          trigger.classList.add(CLASS_NAME_COLLAPSED);
+          trigger.setAttribute('aria-expanded', false);
+        }
       }
     }
 
-    this._isTransitioning = true;
+    this.setTransitioning(true);
 
     const complete = () => {
-      this._isTransitioning = false;
+      this.setTransitioning(false);
       this._element.classList.remove(CLASS_NAME_COLLAPSING);
       this._element.classList.add(CLASS_NAME_COLLAPSE);
       EventHandler.trigger(this._element, EVENT_HIDDEN);
     };
 
     this._element.style[dimension] = '';
+    const transitionDuration = getTransitionDurationFromElement(this._element);
 
-    this._queueCallback(complete, this._element, true);
+    EventHandler.one(this._element, 'transitionend', complete);
+    emulateTransitionEnd(this._element, transitionDuration);
   }
 
-  _isShown(element = this._element) {
-    return element.classList.contains(CLASS_NAME_SHOW);
+  setTransitioning(isTransitioning) {
+    this._isTransitioning = isTransitioning;
+  }
+
+  dispose() {
+    super.dispose();
+    this._config = null;
+    this._parent = null;
+    this._triggerArray = null;
+    this._isTransitioning = null;
   }
 
   // Private
-  _configAfterMerge(config) {
+
+  _getConfig(config) {
+    config = {
+      ...Default,
+      ...config,
+    };
     config.toggle = Boolean(config.toggle); // Coerce string values
-    config.parent = getElement(config.parent);
+    typeCheckConfig(NAME, config, DefaultType);
     return config;
   }
 
   _getDimension() {
-    return this._element.classList.contains(CLASS_NAME_HORIZONTAL) ? WIDTH : HEIGHT;
+    return this._element.classList.contains(WIDTH) ? WIDTH : HEIGHT;
   }
 
-  _initializeChildren() {
-    if (!this._config.parent) {
-      return;
+  _getParent() {
+    let { parent } = this._config;
+
+    if (isElement(parent)) {
+      // it's a jQuery object
+      if (typeof parent.jquery !== 'undefined' || typeof parent[0] !== 'undefined') {
+        parent = parent[0];
+      }
+    } else {
+      parent = SelectorEngine.findOne(parent);
     }
 
-    const children = this._getFirstLevelChildren(SELECTOR_DATA_TOGGLE);
+    const selector = `${SELECTOR_DATA_TOGGLE}[data-bs-parent="${parent}"]`;
 
-    for (const element of children) {
+    SelectorEngine.find(selector, parent).forEach((element) => {
       const selected = getElementFromSelector(element);
 
-      if (selected) {
-        this._addAriaAndCollapsedClass([element], this._isShown(selected));
-      }
-    }
+      this._addAriaAndCollapsedClass(selected, [element]);
+    });
+
+    return parent;
   }
 
-  _getFirstLevelChildren(selector) {
-    const children = SelectorEngine.find(CLASS_NAME_DEEPER_CHILDREN, this._config.parent);
-    // remove children if greater depth
-    return SelectorEngine.find(selector, this._config.parent).filter(
-      (element) => !children.includes(element)
-    );
-  }
-
-  _addAriaAndCollapsedClass(triggerArray, isOpen) {
-    if (!triggerArray.length) {
+  _addAriaAndCollapsedClass(element, triggerArray) {
+    if (!element || !triggerArray.length) {
       return;
     }
 
-    for (const element of triggerArray) {
-      element.classList.toggle(CLASS_NAME_COLLAPSED, !isOpen);
-      element.setAttribute('aria-expanded', isOpen);
-    }
+    const isOpen = element.classList.contains(CLASS_NAME_SHOW);
+
+    triggerArray.forEach((elem) => {
+      if (isOpen) {
+        elem.classList.remove(CLASS_NAME_COLLAPSED);
+      } else {
+        elem.classList.add(CLASS_NAME_COLLAPSED);
+      }
+
+      elem.setAttribute('aria-expanded', isOpen);
+    });
   }
 
   // Static
-  static jQueryInterface(config) {
-    const _config = {};
-    if (typeof config === 'string' && /show|hide/.test(config)) {
+
+  static collapseInterface(element, config) {
+    let data = Data.getData(element, DATA_KEY);
+    const _config = {
+      ...Default,
+      ...Manipulator.getDataAttributes(element),
+      ...(typeof config === 'object' && config ? config : {}),
+    };
+
+    if (!data && _config.toggle && typeof config === 'string' && /show|hide/.test(config)) {
       _config.toggle = false;
     }
 
-    return this.each(function () {
-      const data = Collapse.getOrCreateInstance(this, _config);
+    if (!data) {
+      data = new Collapse(element, _config);
+    }
 
-      if (typeof config === 'string') {
-        if (typeof data[config] === 'undefined') {
-          throw new TypeError(`No method named "${config}"`);
-        }
-
-        data[config]();
+    if (typeof config === 'string') {
+      if (typeof data[config] === 'undefined') {
+        throw new TypeError(`No method named "${config}"`);
       }
+
+      data[config]();
+    }
+  }
+
+  static jQueryInterface(config) {
+    return this.each(function () {
+      Collapse.collapseInterface(this, config);
     });
   }
 }
 
 /**
- * Data API implementation
+ * ------------------------------------------------------------------------
+ * Data Api implementation
+ * ------------------------------------------------------------------------
  */
 
 EventHandler.on(document, EVENT_CLICK_DATA_API, SELECTOR_DATA_TOGGLE, function (event) {
@@ -291,18 +374,36 @@ EventHandler.on(document, EVENT_CLICK_DATA_API, SELECTOR_DATA_TOGGLE, function (
     event.preventDefault();
   }
 
+  const triggerData = Manipulator.getDataAttributes(this);
   const selector = getSelectorFromElement(this);
   const selectorElements = SelectorEngine.find(selector);
 
-  for (const element of selectorElements) {
-    Collapse.getOrCreateInstance(element, { toggle: false }).toggle();
-  }
+  selectorElements.forEach((element) => {
+    const data = Data.getData(element, DATA_KEY);
+    let config;
+    if (data) {
+      // update parent attribute
+      if (data._parent === null && typeof triggerData.parent === 'string') {
+        data._config.parent = triggerData.parent;
+        data._parent = data._getParent();
+      }
+
+      config = 'toggle';
+    } else {
+      config = triggerData;
+    }
+
+    Collapse.collapseInterface(element, config);
+  });
 });
 
 /**
+ * ------------------------------------------------------------------------
  * jQuery
+ * ------------------------------------------------------------------------
+ * add .Collapse to jQuery only if jQuery is present
  */
 
-defineJQueryPlugin(Collapse);
+defineJQueryPlugin(NAME, Collapse);
 
 export default Collapse;

@@ -1,55 +1,78 @@
 /*!
- * Bootstrap selector-engine.js v5.2.3 (https://getbootstrap.com/)
- * Copyright 2011-2022 The Bootstrap Authors (https://github.com/twbs/bootstrap/graphs/contributors)
+ * Bootstrap selector-engine.js v5.0.0-beta2 (https://getbootstrap.com/)
+ * Copyright 2011-2021 The Bootstrap Authors (https://github.com/twbs/bootstrap/graphs/contributors)
  * Licensed under MIT (https://github.com/twbs/bootstrap/blob/main/LICENSE)
  */
 (function (global, factory) {
   typeof exports === 'object' && typeof module !== 'undefined'
-    ? (module.exports = factory(require('../util/index')))
+    ? (module.exports = factory())
     : typeof define === 'function' && define.amd
-    ? define(['../util/index'], factory)
+    ? define(factory)
     : ((global = typeof globalThis !== 'undefined' ? globalThis : global || self),
-      (global.SelectorEngine = factory(global.Index)));
-})(this, function (index) {
+      (global.SelectorEngine = factory()));
+})(this, function () {
   'use strict';
 
   /**
    * --------------------------------------------------------------------------
-   * Bootstrap (v5.2.3): dom/selector-engine.js
+   * Bootstrap (v5.0.0-beta2): dom/selector-engine.js
    * Licensed under MIT (https://github.com/twbs/bootstrap/blob/main/LICENSE)
    * --------------------------------------------------------------------------
    */
+
   /**
+   * ------------------------------------------------------------------------
    * Constants
+   * ------------------------------------------------------------------------
    */
+  var NODE_TEXT = 3;
+  var SelectorEngine = {
+    find: function find(selector, element) {
+      var _ref;
 
-  const SelectorEngine = {
-    find(selector, element = document.documentElement) {
-      return [].concat(...Element.prototype.querySelectorAll.call(element, selector));
+      if (element === void 0) {
+        element = document.documentElement;
+      }
+
+      return (_ref = []).concat.apply(
+        _ref,
+        Element.prototype.querySelectorAll.call(element, selector)
+      );
     },
+    findOne: function findOne(selector, element) {
+      if (element === void 0) {
+        element = document.documentElement;
+      }
 
-    findOne(selector, element = document.documentElement) {
       return Element.prototype.querySelector.call(element, selector);
     },
+    children: function children(element, selector) {
+      var _ref2;
 
-    children(element, selector) {
-      return [].concat(...element.children).filter((child) => child.matches(selector));
+      return (_ref2 = []).concat.apply(_ref2, element.children).filter(function (child) {
+        return child.matches(selector);
+      });
     },
+    parents: function parents(element, selector) {
+      var parents = [];
+      var ancestor = element.parentNode;
 
-    parents(element, selector) {
-      const parents = [];
-      let ancestor = element.parentNode.closest(selector);
+      while (
+        ancestor &&
+        ancestor.nodeType === Node.ELEMENT_NODE &&
+        ancestor.nodeType !== NODE_TEXT
+      ) {
+        if (ancestor.matches(selector)) {
+          parents.push(ancestor);
+        }
 
-      while (ancestor) {
-        parents.push(ancestor);
-        ancestor = ancestor.parentNode.closest(selector);
+        ancestor = ancestor.parentNode;
       }
 
       return parents;
     },
-
-    prev(element, selector) {
-      let previous = element.previousElementSibling;
+    prev: function prev(element, selector) {
+      var previous = element.previousElementSibling;
 
       while (previous) {
         if (previous.matches(selector)) {
@@ -61,10 +84,8 @@
 
       return [];
     },
-
-    // TODO: this is now unused; remove later along with prev()
-    next(element, selector) {
-      let next = element.nextElementSibling;
+    next: function next(element, selector) {
+      var next = element.nextElementSibling;
 
       while (next) {
         if (next.matches(selector)) {
@@ -75,24 +96,6 @@
       }
 
       return [];
-    },
-
-    focusableChildren(element) {
-      const focusables = [
-        'a',
-        'button',
-        'input',
-        'textarea',
-        'select',
-        'details',
-        '[tabindex]',
-        '[contenteditable="true"]',
-      ]
-        .map((selector) => `${selector}:not([tabindex^="-"])`)
-        .join(',');
-      return this.find(focusables, element).filter(
-        (el) => !index.isDisabled(el) && index.isVisible(el)
-      );
     },
   };
 

@@ -54,6 +54,7 @@ class Dropdown extends BSDropdown {
   constructor(element, data) {
     super(element, data);
     this._config = this._getConfig(data);
+    this._parent = Dropdown.getParentFromElement(this._element);
     this._menuStyle = '';
     this._popperPlacement = '';
     this._mdbPopperConfig = '';
@@ -133,7 +134,6 @@ class Dropdown extends BSDropdown {
 
     // Disable Popper if we have a static display
     if (this._config.display === 'static') {
-      Manipulator.setDataAttribute(this._menu, 'popper', 'static');
       popperConfig.modifiers = [
         {
           name: 'applyStyles',
@@ -153,14 +153,7 @@ class Dropdown extends BSDropdown {
 
   _bindShowEvent() {
     EventHandler.on(this._element, EVENT_SHOW, (e) => {
-      const showEvent = EventHandler.trigger(this._element, EVENT_SHOW_MDB, {
-        relatedTarget: e.relatedTarget,
-      });
-
-      if (showEvent.defaultPrevented) {
-        e.preventDefault();
-        return;
-      }
+      EventHandler.trigger(this._element, EVENT_SHOW_MDB, { relatedTarget: e.relatedTarget });
 
       this._dropdownAnimationStart('show');
     });
@@ -168,27 +161,13 @@ class Dropdown extends BSDropdown {
 
   _bindShownEvent() {
     EventHandler.on(this._parent, EVENT_SHOWN, (e) => {
-      const shownEvent = EventHandler.trigger(this._parent, EVENT_SHOWN_MDB, {
-        relatedTarget: e.relatedTarget,
-      });
-
-      if (shownEvent.defaultPrevented) {
-        e.preventDefault();
-        return;
-      }
+      EventHandler.trigger(this._parent, EVENT_SHOWN_MDB, { relatedTarget: e.relatedTarget });
     });
   }
 
   _bindHideEvent() {
     EventHandler.on(this._parent, EVENT_HIDE, (e) => {
-      const hideEvent = EventHandler.trigger(this._parent, EVENT_HIDE_MDB, {
-        relatedTarget: e.relatedTarget,
-      });
-
-      if (hideEvent.defaultPrevented) {
-        e.preventDefault();
-        return;
-      }
+      EventHandler.trigger(this._parent, EVENT_HIDE_MDB, { relatedTarget: e.relatedTarget });
 
       this._menuStyle = this._menu.style.cssText;
       this._popperPlacement = this._menu.getAttribute('data-popper-placement');
@@ -198,14 +177,7 @@ class Dropdown extends BSDropdown {
 
   _bindHiddenEvent() {
     EventHandler.on(this._parent, EVENT_HIDDEN, (e) => {
-      const hiddenEvent = EventHandler.trigger(this._parent, EVENT_HIDDEN_MDB, {
-        relatedTarget: e.relatedTarget,
-      });
-
-      if (hiddenEvent.defaultPrevented) {
-        e.preventDefault();
-        return;
-      }
+      EventHandler.trigger(this._parent, EVENT_HIDDEN_MDB, { relatedTarget: e.relatedTarget });
 
       if (this._config.display !== 'static' && this._menuStyle !== '') {
         this._menu.style.cssText = this._menuStyle;

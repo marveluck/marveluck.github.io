@@ -1,3 +1,4 @@
+import TouchUtil from './touchUtil';
 import EventHandler from '../../dom/event-handler';
 
 const DEFAULT_OPTIONS = {
@@ -5,8 +6,9 @@ const DEFAULT_OPTIONS = {
   direction: 'all',
 };
 
-class Swipe {
+class Swipe extends TouchUtil {
   constructor(element, options) {
+    super();
     this._element = element;
     this._startPosition = null;
     this._options = {
@@ -54,27 +56,6 @@ class Swipe {
 
   handleTouchEnd() {
     this._startPosition = null;
-  }
-
-  _getCoordinates(e) {
-    const [touch] = e.touches;
-    return {
-      x: touch.clientX,
-      y: touch.clientY,
-    };
-  }
-
-  _getDirection(displacement) {
-    return {
-      x: {
-        direction: displacement.x < 0 ? 'left' : 'right',
-        value: Math.abs(displacement.x),
-      },
-      y: {
-        direction: displacement.y < 0 ? 'up' : 'down',
-        value: Math.abs(displacement.y),
-      },
-    };
   }
 }
 

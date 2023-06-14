@@ -10,6 +10,8 @@ import BSPopover from '../bootstrap/mdb-prefix/popover';
  */
 
 const NAME = 'popover';
+const DATA_KEY = `mdb.${NAME}`;
+const EVENT_KEY = `.${DATA_KEY}`;
 
 const EVENT_SHOW_BS = 'show.bs.popover';
 const EVENT_SHOWN_BS = 'shown.bs.popover';
@@ -17,13 +19,11 @@ const EVENT_HIDE_BS = 'hide.bs.popover';
 const EVENT_HIDDEN_BS = 'hidden.bs.popover';
 const EVENT_INSERTED_BS = 'inserted.bs.popover';
 
-const EXTENDED_EVENTS = [
-  { name: 'show' },
-  { name: 'shown' },
-  { name: 'hide' },
-  { name: 'hidden' },
-  { name: 'inserted' },
-];
+const EVENT_SHOW = `show${EVENT_KEY}`;
+const EVENT_SHOWN = `shown${EVENT_KEY}`;
+const EVENT_HIDE = `hide${EVENT_KEY}`;
+const EVENT_HIDDEN = `hidden${EVENT_KEY}`;
+const EVENT_INSERTED = `inserted${EVENT_KEY}`;
 
 const SELECTOR_DATA_TOGGLE = '[data-mdb-toggle="popover"]';
 
@@ -51,11 +51,41 @@ class Popover extends BSPopover {
 
   // Private
   _init() {
-    this._bindMdbEvents();
+    this._bindShowEvent();
+    this._bindShownEvent();
+    this._bindHideEvent();
+    this._bindHiddenEvent();
+    this._bindInsertedEvent();
   }
 
-  _bindMdbEvents() {
-    EventHandler.extend(this._element, EXTENDED_EVENTS, NAME);
+  _bindShowEvent() {
+    EventHandler.on(this.element, EVENT_SHOW_BS, () => {
+      EventHandler.trigger(this.element, EVENT_SHOW);
+    });
+  }
+
+  _bindShownEvent() {
+    EventHandler.on(this.element, EVENT_SHOWN_BS, () => {
+      EventHandler.trigger(this.element, EVENT_SHOWN);
+    });
+  }
+
+  _bindHideEvent() {
+    EventHandler.on(this.element, EVENT_HIDE_BS, () => {
+      EventHandler.trigger(this.element, EVENT_HIDE);
+    });
+  }
+
+  _bindHiddenEvent() {
+    EventHandler.on(this.element, EVENT_HIDDEN_BS, () => {
+      EventHandler.trigger(this.element, EVENT_HIDDEN);
+    });
+  }
+
+  _bindInsertedEvent() {
+    EventHandler.on(this.element, EVENT_INSERTED_BS, () => {
+      EventHandler.trigger(this.element, EVENT_INSERTED);
+    });
   }
 }
 
